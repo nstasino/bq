@@ -2,7 +2,10 @@
 from bq_module import *
 from google.cloud import storage
 
-READ_ONLY_SCOPE  = 'https://www.googleapis.com/auth/devstorage.read_only'
+
+READ_ONLY_SCOPE = 'https://www.googleapis.com/auth/devstorage.read_only'
+
+
 def export_to_table(json_key,
                     sql,
                     dataset_name,
@@ -116,7 +119,9 @@ def connect_gcs_client(json_key_file):
                         scopes=READ_ONLY_SCOPE)
             project_id = json_key['project_id']
 
-    return BigQueryClient(bq_service, project_id)
+    gcs_service = _get_gcs_service(credentials=credentials,
+                                 service_url=DISCOVERY_URI)
+    return GCSClient(gcs_service, project_id)
 
 
 def _credentials():
@@ -126,7 +131,7 @@ def _credentials():
     return ServiceAccountCredentials
 
 
-def _get_bq_service(credentials=None, service_url=None):
+def _get_gcs_service(credentials=None, service_url=None):
     """Construct an authorized BigQuery service object."""
 
     assert credentials, 'Must provide ServiceAccountCredentials'
@@ -136,3 +141,28 @@ def _get_bq_service(credentials=None, service_url=None):
                     discoveryServiceUrl=service_url)
 
     return service
+
+
+class GCSClient(object):
+
+    def __init__(self):
+        self.gcs_client = storage.Client()
+
+    def get_bucket(self, bucket_name):
+        try:
+            bucket = self.gcs_client.get_bucket(bucket_name)
+        # except google.cloud.exceptions.NotFound: #need to check this exception
+        except:
+            print('Sorry, that bucket does not exist')
+        return bucket
+
+    def download_file(self, bucket_name, blob_name, destination_file=None):
+        try:
+            bucket = self.get_bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+            if destination_file:
+                blob.download_to_filename(destination_file)
+            else:
+                blob.download_to_filename(blob_name)
+        except:
+            print('Sorry, that file does not exist')

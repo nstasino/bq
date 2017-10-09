@@ -2,7 +2,8 @@ import pymysql
 pymysql.install_as_MySQLdb()
 # Ensure coud_proxy is run
 # Connect to the database
-#TODO: add DB credentias as args
+#TODO: pass DB credentias as args
+
 
 def run_query(user, password, database, query):
     ''' Runs a pymysql query. Preliminary version
@@ -20,20 +21,22 @@ def run_query(user, password, database, query):
                                  user=user,
                                  password=password,
                                  db=database,
-                                 charset='utf8mb4',
-                                 cursorclass=pymysql.cursors.DictCursor)
+                                 charset='utf8',
+                                 cursorclass=pymysql.cursors.DictCursor,
+                                 local_infile=True)
 
     try:
         with connection.cursor() as cursor:
-            # Create a new record
-            #sql = "INSERT INTO `users` (`email`, `password`) VALUES (%s, %s)"
             sql = query
             cursor.execute(sql)
 
-        # connection is not autocommit by default. So you must commit to save
-        # your changes.
         connection.commit()
-
+    # Future: create separate error handling for pymysql errors
+    except pymysql.err.InternalError as e:
+        code, msg = e.args
+        # if code == 1050:
+        print(msg)
+        return code
     finally:
         connection.close()
     return connection
@@ -54,7 +57,7 @@ def create_sql_from_json_schema(json_schema):
     attributes = []
     sql_create_statement = 'CREATE TABLE `temps` ('
     for j in json_schema:
-        datatype = j[u'type']
+        datatype = j['type']
         name = j['name']
         is_null = True if j['mode'] == 'NULLABLE' else False
         if datatype == 'STRING':

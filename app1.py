@@ -4,14 +4,15 @@ from sql_module import *
 from gcs_module import *
 
 
+
 if __name__ == '__main__':
-    # TODO: Next version maybe use argparse
+    # TODO: Next version use argparse
 
     # JSON key file with credentials
     json_key = 'My First Project-8a317759be48.json'
     '''TODO:
     The Following (ugly) SQL statement can be provided as an Argument or a text file
-    or through Unix pipe (note recommended)
+    or through Unix pipe (not recommended )
     TODO: Validate the String SQL using a lib.
 
 
@@ -102,22 +103,41 @@ ON
   min_table.state = max_table.state'''
 
     write_disposition = 'WRITE_TRUNCATE'
+
     # if the export to bg table went through
     if export_to_table(json_key, sql, 'my_data', 'my_table', None,
                        write_disposition):
         # proceed with the export to GCS
         export_to_gcs(json_key, 'my_data', 'my_table',
                       ['gs://testweathernikos/app1.csv'])
-    client = connect_client(json_key_file=json_key)
 
+    bq_client = connect_client(json_key_file=json_key)
     # Fetch table schema
-    table_schema = client.get_table_schema('my_data', 'my_table')
-    table_schema = "[{u'type': u'FLOAT', u'name': u'max_celsius', u'mode': u'NULLABLE'}, {u'type': u'FLOAT', u'name': u'min_celsius', u'mode': u'NULLABLE'}, {u'type': u'STRING', u'name': u'state', u'mode': u'NULLABLE'}]"
+    table_schema = bq_client.get_table_schema('my_data', 'my_table')
+    # table_schema = [{u'type': u'FLOAT', u'name': u'max_celsius', u'mode': u'NULLABLE'}, {u'type': u'FLOAT', u'name': u'min_celsius', u'mode': u'NULLABLE'}, {u'type': u'STRING', u'name': u'state', u'mode': u'NULLABLE'}]
     # statement: CREATE TABLE USING JSON table_schema
-    create_sql_from_json_schema(table_schema)
+    create_table_query = create_sql_from_json_schema(table_schema)
     # TODO Add operations code to test if ./cloudproxy is on.
     # TODO get credentials more securely and with argparse
     user = 'root'
     password =  '97103'
     database = 'demo'
-    mysql_query_result = run_query(user, password, database, query)
+    # Check if table already exists
+    mysql_query_result = run_query(user, password, database, create_table_query)
+    print "Dropping table"
+    if mysql_query_result == 1050:
+        run_query(user, password, database, 'DROP TABLE temps')
+    # rerun the query
+    mysql_query_result = run_query(user, password, database, create_table_query)
+
+    # Call GCS client and download files (BigQuery result)
+    gcs_client = GCSClient()
+    bucket_name = 'testweathernikos'
+    file_names = ['app1.csv']
+    for f_n in file_names:
+        gcs_client.download_file(bucket_name, f_n)
+
+
+    # Insert into DB with local data infile
+    load_data_query = "LOAD DATA LOCAL INFILE 'app1.csv' INTO TABLE temps CHARACTER SET 'utf8' FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' ESCAPED BY '\"' IGNORE 1 LINES ; "
+    mysql_load_data_result = run_query(user, password, database, load_data_query)
