@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 from bq_module import *
+from google.cloud import storage
 
-
+READ_ONLY_SCOPE  = 'https://www.googleapis.com/auth/devstorage.read_only'
 def export_to_table(json_key,
                     sql,
                     dataset_name,
@@ -91,3 +92,47 @@ def export_to_gcs(json_key,
         print job_resource
     except BigQueryTimeoutException:
         print "Timeout"
+
+
+def connect_gcs_client(json_key_file):
+    """Return a client connection to the GCS API.
+    A local JSON key file must be provided for authentication
+
+    Args:
+        json_file: A locally downloaded JSON file with connection
+        /authentication info
+
+    Returns:
+        client: A GCS client object
+
+    Raises:
+    """
+
+    # TODO check if json_key_file exists
+    if json_key_file:
+        with open(json_key_file, 'r') as key_file:
+            json_key = json.load(key_file)
+            credentials = _credentials().from_json_keyfile_dict(json_key,
+                        scopes=READ_ONLY_SCOPE)
+            project_id = json_key['project_id']
+
+    return BigQueryClient(bq_service, project_id)
+
+
+def _credentials():
+    """Import and return SignedJwtAssertionCredentials class"""
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    return ServiceAccountCredentials
+
+
+def _get_bq_service(credentials=None, service_url=None):
+    """Construct an authorized BigQuery service object."""
+
+    assert credentials, 'Must provide ServiceAccountCredentials'
+
+    http = credentials.authorize(Http())
+    service = build('storage', 'v1', http=http,
+                    discoveryServiceUrl=service_url)
+
+    return service
